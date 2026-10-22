@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="250" viewBox="0 0 960 250" role="img" aria-labelledby="title desc">
+  <title id="title">Multicaster — one stream, every audience</title>
+  <desc id="desc">A lightweight, self-hosted streaming relay for Linux, Windows and macOS.</desc>
+  <rect width="960" height="250" rx="28" fill="#f4efff"/>
+  <circle cx="830" cy="48" r="125" fill="#eae0fc"/>
+  <circle cx="912" cy="223" r="90" fill="#e1f4eb"/>
+  <g transform="translate(58 66)">
+    <rect width="72" height="72" rx="23" fill="#8054c5"/>
+    <path d="m37 14 5 15 16 5-16 5-5 16-5-16-16-5 16-5z" fill="#fff"/>
+    <path d="m56 13 2 6 6 2-6 2-2 6-2-6-6-2 6-2z" fill="#e9defe"/>
+  </g>
+  <g fill="#302640" font-family="ui-rounded, 'Segoe UI', system-ui, sans-serif">
+    <text x="154" y="107" font-size="43" font-weight="800" letter-spacing="-1.5">multicaster<tspan fill="#8054c5">.</tspan></text>
+    <text x="60" y="177" font-size="23" font-weight="600">One stream. Every audience.</text>
+    <text x="60" y="210" font-size="16" fill="#665a78">Self-hosted · Single binary · No re-encoding</text>
+  </g>
+  <g stroke="#8054c5" stroke-width="3" fill="none" stroke-linecap="round">
+    <rect x="680" y="92" width="62" height="48" rx="13" fill="#fff"/>
+    <path d="m705 106 17 10-17 10z" fill="#eae0fc"/>
+    <path d="M754 116h25m-8-8 8 8-8 8m9-36 20-20m-20 76 20 20"/>
+    <rect x="810" y="39" width="75" height="45" rx="13" fill="#fff"/>
+    <rect x="810" y="93" width="75" height="45" rx="13" fill="#fff"/>
+    <rect x="810" y="149" width="75" height="45" rx="13" fill="#fff"/>
+    <path d="m833 60 7 7 12-13m-19 62 7 7 12-13m-19 62 7 7 12-13" stroke="#398364"/>
+  </g>
+</svg>

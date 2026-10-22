@@ -1,0 +1,168 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to publish (for example v0.1.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+jobs:
+  build:
+    name: Build and test release
+    if: github.event_name == 'workflow_dispatch' || !github.event.deleted
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+      prerelease: ${{ steps.metadata.outputs.prerelease }}
+      source_sha: ${{ steps.metadata.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          persist-credentials: false
+      - name: Validate tag and tracked versions
+        id: metadata
+        run: python3 scripts/release.py validate --tag "$RELEASE_TAG"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.metadata.outputs.go_version }}
+          check-latest: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build dashboard and six platform binaries
+        run: make release TAG="$RELEASE_TAG" REPOSITORY="$GITHUB_REPOSITORY"
+      - name: Check backend, release tooling and installers
+        run: make check
+      - name: Install browser dependencies
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Check desktop and mobile flows
+        working-directory: frontend
+        run: npm run test:e2e
+      - name: Install streaming test tools
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Exercise live-stream failure recovery
+        run: |
+          mkdir -p /tmp/opencode
+          go build -race -o /tmp/opencode/multicaster ./cmd/multicaster
+          python3 scripts/smoke.py /tmp/opencode/multicaster
+      - name: Probe Linux release binary
+        env:
+          VERSION: ${{ steps.metadata.outputs.version }}
+        run: test "$(release/multicaster-linux-amd64 --version)" = "$VERSION"
+      - name: Verify checksums
+        working-directory: release
+        run: sha256sum --check --strict SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: multicaster-release
+          path: release/*
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 1
+
+  native:
+    name: Native binary check (${{ matrix.os }})
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: multicaster-release
+          path: release
+      - name: Probe Windows binary and parse installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          $reported = & ./release/multicaster-windows-amd64.exe --version
+          if ($LASTEXITCODE -ne 0 -or "$reported".Trim() -ne $env:VERSION) { throw 'Windows version probe failed' }
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path ./release/install.ps1), [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count -gt 0) { throw ($parseErrors | Out-String) }
+      - name: Probe macOS binary and parse installer
+        if: runner.os == 'macOS'
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          arch=amd64
+          if [ "$(uname -m)" = arm64 ]; then arch=arm64; fi
+          chmod +x "release/multicaster-macos-$arch"
+          test "$("release/multicaster-macos-$arch" --version)" = "$VERSION"
+          sh -n release/install.sh
+
+  publish:
+    name: Publish GitHub release
+    needs: [build, native]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: multicaster-release
+          path: release
+      - name: Prepare release notes
+        run: python3 scripts/release.py notes --tag "$RELEASE_TAG" > "$RUNNER_TEMP/release-notes.md"
+      - name: Verify tested artifacts
+        working-directory: release
+        run: sha256sum --check --strict SHA256SUMS
+      - name: Publish binaries, installers and update manifest
+        working-directory: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          actual_sha="$(gh api "repos/$GH_REPO/commits/$RELEASE_TAG" --jq .sha)"
+          test "$actual_sha" = "$SOURCE_SHA"
+          assets=(
+            multicaster-linux-amd64 multicaster-linux-arm64
+            multicaster-windows-amd64.exe multicaster-windows-arm64.exe
+            multicaster-macos-amd64 multicaster-macos-arm64
+            install.sh install.ps1 SHA256SUMS update-manifest.json
+          )
+          for asset in "${assets[@]}"; do test -s "$asset"; done
+          flags=()
+          if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); else flags+=(--latest); fi
+          gh release create "$RELEASE_TAG" "${assets[@]}" \
+            --verify-tag --title "Multicaster $RELEASE_TAG" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" "${flags[@]}"
+          echo "Release: https://github.com/$GH_REPO/releases/tag/$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
+          echo "Feed: https://github.com/$GH_REPO/releases/latest/download/update-manifest.json" >> "$GITHUB_STEP_SUMMARY"

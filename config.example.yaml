@@ -1,0 +1,29 @@
+server:
+  rtmp_listen: ":1935"
+  http_listen: ":8080"
+  data_dir: "" # Defaults to the configuration directory.
+
+settings:
+  restream_enabled: true
+  web_stream_enabled: false
+  performance_mode: false
+  preview_enabled: false
+  update_repository: ""
+  update_manifest_url: "https://github.com/TrueFix/Multicaster/releases/latest/download/update-manifest.json"
+
+auth:
+  stream_key: "" # Generated automatically; copy it from Settings after signing in.
+  admin_token: "" # Generated machine API token; not the dashboard password.
+  password_hash: "" # Set by the create-password page; never enter a plain password here.
+  setup_token: "" # Generated automatically when a password needs to be created.
+
+hls:
+  segment_duration: 2s
+  playlist_length: 6
+
+destinations:
+  - id: dest-1
+    name: Example RTMP
+    type: rtmp_push
+    url: "rtmp://127.0.0.1/live/test"
+    enabled: false

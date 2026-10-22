@@ -1,0 +1,13 @@
+/data/
+/config.yaml
+/frontend/node_modules/
+/frontend/test-results/
+/frontend/playwright-report/
+/dist/
+/release/
+**/__pycache__/
+.env
+.env.*
+!.env.example
+*.exe
+/multicaster
