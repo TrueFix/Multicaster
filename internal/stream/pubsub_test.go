@@ -107,3 +107,17 @@ func TestConsumerPanicIsIsolatedAndReported(t *testing.T) {
 		t.Fatal("other output was interrupted")
 	}
 }
+
+func TestVideoEndSequenceCannotStartSubscriber(t *testing.T) {
+	ps := NewPubsub("live")
+	defer ps.Close()
+	events := make(chan struct{}, 1)
+	sub := ps.Subscribe(func(*flv.FlvTag) error { events <- struct{}{}; return nil })
+	defer ps.Unsubscribe(sub)
+	ps.Pub().Publish(&flv.FlvTag{Data: &flv.VideoData{FrameType: flv.FrameTypeKeyFrame, AVCPacketType: flv.AVCPacketTypeEOS, Data: bytes.NewBuffer(nil)}})
+	select {
+	case <-events:
+		t.Fatal("end-of-sequence was treated as a video keyframe")
+	case <-time.After(20 * time.Millisecond):
+	}
+}

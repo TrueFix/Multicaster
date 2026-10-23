@@ -22,7 +22,7 @@ import (
 
 // VERSION, frontend/package.json and this fallback are checked before tagging.
 // Release builds stamp all four variables through linker flags.
-var Version = "0.1.0"
+var Version = "0.1.1"
 var Commit = "development"
 var BuildDate = "unknown"
 var DefaultManifestURL = "https://github.com/TrueFix/Multicaster/releases/latest/download/update-manifest.json"

@@ -242,12 +242,17 @@ func (e *Engine) syncOutputs() {
 			}
 		}
 	}
+	var stopping []*rtmp.PushWorker
 	for id, w := range e.workers {
 		d, ok := want[id]
 		if !ok || w.URL != d.URL {
-			w.Stop()
+			w.RequestStop()
+			stopping = append(stopping, w)
 			delete(e.workers, id)
 		}
+	}
+	for _, worker := range stopping {
+		worker.WaitStopped()
 	}
 	for id, d := range want {
 		if _, ok := e.workers[id]; !ok {
@@ -284,8 +289,11 @@ func (e *Engine) syncOutputs() {
 	}
 }
 func (e *Engine) stopAllWorkers() {
+	for _, w := range e.workers {
+		w.RequestStop()
+	}
 	for id, w := range e.workers {
-		w.Stop()
+		w.WaitStopped()
 		delete(e.workers, id)
 	}
 }

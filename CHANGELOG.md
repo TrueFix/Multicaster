@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.1] - 2026-10-23
+
+### Fixed
+
+- Handle RTMP publishing errors and terminal server status messages so failed sessions reconnect instead of remaining marked live.
+- Prevent timestamp underflow when restarting a platform mid-stream, while preserving audio/video timing and supporting timestamp rollover.
+- Forward and cache stream metadata, replay it when a platform reconnects, and deliver metadata updates during streaming.
+- Use the server-assigned RTMP stream ID consistently for publishing, media, metadata and shutdown.
+- Send bounded, graceful RTMP unpublish commands on intentional stops while keeping automatic reconnection separate from deliberate broadcast termination.
+
 ## [0.1.0] - 2026-10-22
 
 The first public release of Multicaster: a self-hosted, single-binary streaming relay with a friendly dashboard.

@@ -143,13 +143,16 @@ func (p *Pub) Publish(tag *flvtag.FlvTag) error {
 		if header {
 			b.video = tag
 		}
-		key = d.FrameType == flvtag.FrameTypeKeyFrame && !header
+		key = d.FrameType == flvtag.FrameTypeKeyFrame && d.AVCPacketType == flvtag.AVCPacketTypeNALU
 	case *flvtag.AudioData:
 		if d.AACPacketType == flvtag.AACPacketTypeSequenceHeader {
 			b.audio = tag
 			header = true
 		}
 	case *flvtag.ScriptData:
+		b.meta = tag
+		header = true
+	case *Metadata:
 		b.meta = tag
 		header = true
 	}
@@ -198,6 +201,8 @@ func (p *Pub) Publish(tag *flvtag.FlvTag) error {
 
 func tagSize(t *flvtag.FlvTag) int64 {
 	switch d := t.Data.(type) {
+	case *Metadata:
+		return int64(len(d.encoded))
 	case *flvtag.VideoData:
 		if b, ok := d.Data.(*bytes.Buffer); ok {
 			return int64(b.Len())

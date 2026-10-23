@@ -14,6 +14,7 @@ import (
 	"github.com/bluenviron/gortmplib"
 	msg "github.com/bluenviron/gortmplib/pkg/message"
 	"github.com/truefix/multicaster/internal/engine"
+	"github.com/truefix/multicaster/internal/stream"
 	flv "github.com/yutopp/go-flv/tag"
 )
 
@@ -53,7 +54,9 @@ func Run(ctx context.Context, ln net.Listener, eng *engine.Engine, logger *slog.
 				}
 				if owns {
 					eng.OnPublishStop()
-					logger.Info("ingest stopped")
+					if ctx.Err() == nil {
+						logger.Info("OBS disconnected")
+					}
 				}
 			}()
 			after := context.AfterFunc(ctx, func() { conn.Close() })
@@ -90,7 +93,7 @@ func Run(ctx context.Context, ln net.Listener, eng *engine.Engine, logger *slog.
 			wire.authDeadline = time.Time{}
 			conn.SetDeadline(time.Time{})
 			pub := ps.Pub()
-			logger.Info("ingest started")
+			logger.Info("OBS connected")
 			for {
 				message, err := server.Read()
 				if err != nil {
@@ -98,7 +101,7 @@ func Run(ctx context.Context, ln net.Listener, eng *engine.Engine, logger *slog.
 				}
 				tag, err := mediaTag(message)
 				if err != nil {
-					logger.Warn("incompatible or invalid input; closing publisher")
+					logger.Warn("Unsupported stream input; select H.264 video and AAC audio in OBS")
 					return
 				}
 				if tag != nil {
@@ -132,6 +135,23 @@ func (c *idleConn) Write(b []byte) (int, error) {
 }
 func mediaTag(message msg.Message) (*flv.FlvTag, error) {
 	switch d := message.(type) {
+	case *msg.DataAMF0:
+		// Relay stream metadata, not arbitrary cue points or data commands.
+		if len(d.Payload) == 0 {
+			return nil, nil
+		}
+		name, _ := d.Payload[0].(string)
+		if name == "@setDataFrame" && len(d.Payload) > 1 {
+			name, _ = d.Payload[1].(string)
+		}
+		if name != "onMetaData" {
+			return nil, nil
+		}
+		metadata, err := stream.NewMetadata(d.Payload)
+		if err != nil {
+			return nil, err
+		}
+		return &flv.FlvTag{TagType: flv.TagTypeScriptData, Data: metadata}, nil
 	case *msg.Video:
 		if d.FrameType == msg.VideoFrameTypeCommand {
 			return nil, nil
